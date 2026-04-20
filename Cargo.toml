@@ -91,3 +91,12 @@ codegen-units = 1
 
 [profile.dev]
 debug = true
+
+[package.metadata.bundle]
+name = "Tsukimi"
+identifier = "com.tsukinaha.tsukimi"
+icon = ["resources/icons/scalable/apps/com.github.tsukinaha.tsukimi.svg"]
+version = "0.1.0"
+copyright = "Copyright © 2026"
+category = "Video"
+short_description = "A Jellyfin/Emby client"
