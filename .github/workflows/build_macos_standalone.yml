@@ -1,4 +1,4 @@
-name: MacOS Intel Official 2026 - Metal Fix
+name: MacOS Intel Official 2026 - GLES Force Fix
 on:
   workflow_dispatch:
 
@@ -11,7 +11,6 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          # On installe TOUT, y compris les outils de rendu pour macOS
           brew install gtk4 libadwaita mpv pkg-config dylibbundler gettext \
                        gstreamer adwaita-icon-theme cairo pango atk
           rustup target add x86_64-apple-darwin
@@ -21,9 +20,9 @@ jobs:
           export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:/usr/local/opt/libffi/lib/pkgconfig"
           export GETTEXT_DIR=$(brew --prefix gettext)
           
-          # FORCE le rendu sur Metal/Quartz pour macOS et ignore GLES
-          # On ajoute aussi des drapeaux pour ignorer les erreurs de proxy spécifiques à Linux
-          export RUSTFLAGS="--cfg=apple --cfg=metal"
+          # LA RUSE : On force l'activation de la feature 'gles' au niveau de cargo
+          # et on dit au compilateur de ne pas paniquer si GLES est instable sur Mac.
+          export RUSTFLAGS="--cfg=gles"
           
           cargo build --release --target x86_64-apple-darwin
 
@@ -37,11 +36,9 @@ jobs:
           cp share/macos/AppIcon.icns Tsukimi.app/Contents/Resources/
           cp target/x86_64-apple-darwin/release/tsukimi Tsukimi.app/Contents/MacOS/
           
-          # Compilation des schémas GSettings
           cp $(brew --prefix gtk4)/share/glib-2.0/schemas/*.xml Tsukimi.app/Contents/Resources/share/glib-2.0/schemas/ || true
           glib-compile-schemas Tsukimi.app/Contents/Resources/share/glib-2.0/schemas/
           
-          # On lie les librairies dynamiques
           dylibbundler -od -b \
             -x Tsukimi.app/Contents/MacOS/tsukimi \
             -d Tsukimi.app/Contents/Frameworks/ \
