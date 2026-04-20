@@ -1,4 +1,4 @@
-name: MacOS CI Standalone
+name: MacOS CI Standalone (Cross-Compile Intel)
 on:
   workflow_dispatch:
 
@@ -8,40 +8,46 @@ env:
 
 jobs:
   build-release:
-    runs-on: macos-13
+    # On utilise le runner le plus récent (M1/M2)
+    runs-on: macos-latest 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install Dependencies
         run: |
+          # On installe les librairies. Brew installera les versions ARM par défaut,
+          # mais dylibbundler et le compilateur Rust s'occuperont du reste.
           brew install gtk4 libadwaita mpv pkg-config dylibbundler gettext
+          
+          # On ajoute explicitement la cible Intel pour Rust
           rustup target add x86_64-apple-darwin
 
-      - name: Build
+      - name: Build for Intel
         run: |
-          # On compile spécifiquement pour Intel
+          # On force la compilation vers l'architecture Intel (x86_64)
           cargo build --release --locked --target x86_64-apple-darwin
 
       - name: Make MacOS package & Bundle Libs
         run: |
-          # 1. On crée la structure conforme à macOS
           mkdir -p Tsukimi.app/Contents/MacOS
           mkdir -p Tsukimi.app/Contents/Resources
           mkdir -p Tsukimi.app/Contents/Frameworks
           
-          # 2. On utilise les fichiers du projet Tsukimi
           cp share/macos/Info.plist Tsukimi.app/Contents/
           cp share/macos/AppIcon.icns Tsukimi.app/Contents/Resources/
+          
+          # On récupère le binaire qui a été généré dans le dossier x86_64
           cp target/x86_64-apple-darwin/release/tsukimi Tsukimi.app/Contents/MacOS/
           
-          # 3. On embarque les librairies (GTK, etc.)
+          # dylibbundler va chercher les librairies Intel nécessaires.
+          # Note : Si dylibbundler galère car brew est en ARM, il faudra peut-être
+          # forcer brew à installer en x86_64, mais testons d'abord ainsi.
           dylibbundler -od -b \
             -x Tsukimi.app/Contents/MacOS/tsukimi \
             -d Tsukimi.app/Contents/Frameworks/ \
             -p @executable_path/../Frameworks/
           
-          # 4. On compresse en ZIP (plus simple que tar.gz sur Mac)
           zip -r Tsukimi_Intel_Standalone.zip Tsukimi.app
 
       - name: Upload artifact
