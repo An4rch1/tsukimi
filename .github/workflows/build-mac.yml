@@ -1,47 +1,47 @@
-name: Build Standalone macOS App
-on: [push, workflow_dispatch]
+name: MacOS Intel Official 2026
+on:
+  workflow_dispatch:
 
 jobs:
-  bundle:
-    runs-on: macos-13
+  build:
+    # On utilise le nouveau label officiel pour Intel
+    runs-on: macos-15-intel 
+    
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install System Dependencies
+      - name: Install Dependencies
         run: |
-          brew install gtk4 libadwaita mpv gettext pkg-config dylibbundler
+          # Ici, brew est déjà en mode Intel nativement !
+          brew install gtk4 libadwaita mpv pkg-config dylibbundler gettext
+          rustup target add x86_64-apple-darwin
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-apple-darwin
-
-      - name: Install cargo-bundle
-        run: cargo install cargo-bundle
-
-      - name: Build and Bundle
+      - name: Build Tsukimi
         run: |
-          export PKG_CONFIG_PATH="/usr/local/opt/libffi/lib/pkgconfig:/usr/local/lib/pkgconfig"
-          # 1. On compile et on crée la structure .app
-          cargo bundle --release --target x86_64-apple-darwin
+          # Pas besoin de Rosetta, on compile normalement
+          cargo build --release --locked --target x86_64-apple-darwin
+
+      - name: Bundle App
+        run: |
+          mkdir -p Tsukimi.app/Contents/MacOS
+          mkdir -p Tsukimi.app/Contents/Resources
+          mkdir -p Tsukimi.app/Contents/Frameworks
           
-          # 2. On crée le dossier pour les librairies à l'intérieur de l'app
-          mkdir -p target/x86_64-apple-darwin/release/bundle/osx/Tsukimi.app/Contents/Frameworks
+          cp share/macos/Info.plist Tsukimi.app/Contents/
+          cp share/macos/AppIcon.icns Tsukimi.app/Contents/Resources/
+          cp target/x86_64-apple-darwin/release/tsukimi Tsukimi.app/Contents/MacOS/
           
-          # 3. On aspire les dépendances (GTK, MPV, etc.) dans l'app
+          # Liaison des librairies
           dylibbundler -od -b \
-            -x target/x86_64-apple-darwin/release/bundle/osx/Tsukimi.app/Contents/MacOS/tsukimi \
-            -d target/x86_64-apple-darwin/release/bundle/osx/Tsukimi.app/Contents/Frameworks/ \
+            -x Tsukimi.app/Contents/MacOS/tsukimi \
+            -d Tsukimi.app/Contents/Frameworks/ \
             -p @executable_path/../Frameworks/
+          
+          zip -r Tsukimi_Intel_Mac_Final.zip Tsukimi.app
 
-      - name: Compress App Bundle
-        run: |
-          cd target/x86_64-apple-darwin/release/bundle/osx/
-          zip -r Tsukimi_Intel_Mac.zip Tsukimi.app
-
-      - name: Upload Artifact
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: Tsukimi-Executable-Intel
-          path: target/x86_64-apple-darwin/release/bundle/osx/Tsukimi_Intel_Mac.zip
+          name: Tsukimi-Intel-Official
+          path: Tsukimi_Intel_Mac_Final.zip
