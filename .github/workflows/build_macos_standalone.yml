@@ -1,37 +1,29 @@
-name: MacOS Intel Standalone 2026
+name: MacOS Intel Official 2026
 on:
   workflow_dispatch:
 
 jobs:
-  build-intel:
-    runs-on: macos-latest # Serveur Apple Silicon (M1/M2)
+  build:
+    # On utilise le nouveau label officiel pour Intel
+    runs-on: macos-15-intel 
+    
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Intel Dependencies (via Rosetta)
+      - name: Install Dependencies
         run: |
-          # 1. On installe manuellement une version Intel de Homebrew
-          arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-          
-          # 2. On utilise cette version spécifique pour installer les libs Intel
-          # Le chemin par défaut pour Homebrew Intel est /usr/local/bin/brew
-          arch -x86_64 /usr/local/bin/brew install gtk4 libadwaita mpv pkg-config dylibbundler gettext
-          
-          # 3. On ajoute la cible Rust
+          # Ici, brew est déjà en mode Intel nativement !
+          brew install gtk4 libadwaita mpv pkg-config dylibbundler gettext
           rustup target add x86_64-apple-darwin
 
-      - name: Build for Intel
+      - name: Build Tsukimi
         run: |
-          # On pointe vers le pkg-config de la version Intel de Homebrew
-          export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:/usr/local/opt/libffi/lib/pkgconfig"
-          export PATH="/usr/local/bin:$PATH"
-          
+          # Pas besoin de Rosetta, on compile normalement
           cargo build --release --locked --target x86_64-apple-darwin
 
-      - name: Bundle App & Libraries
+      - name: Bundle App
         run: |
-          # Création de la structure .app
           mkdir -p Tsukimi.app/Contents/MacOS
           mkdir -p Tsukimi.app/Contents/Resources
           mkdir -p Tsukimi.app/Contents/Frameworks
@@ -40,16 +32,16 @@ jobs:
           cp share/macos/AppIcon.icns Tsukimi.app/Contents/Resources/
           cp target/x86_64-apple-darwin/release/tsukimi Tsukimi.app/Contents/MacOS/
           
-          # On utilise dylibbundler (version Intel) pour lier les libs Intel
-          /usr/local/bin/dylibbundler -od -b \
+          # Liaison des librairies
+          dylibbundler -od -b \
             -x Tsukimi.app/Contents/MacOS/tsukimi \
             -d Tsukimi.app/Contents/Frameworks/ \
             -p @executable_path/../Frameworks/
           
-          zip -r Tsukimi_Intel_Mac_2026.zip Tsukimi.app
+          zip -r Tsukimi_Intel_Mac_Final.zip Tsukimi.app
 
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: Tsukimi-Final-Intel
-          path: Tsukimi_Intel_Mac_2026.zip
+          name: Tsukimi-Intel-Official
+          path: Tsukimi_Intel_Mac_Final.zip
