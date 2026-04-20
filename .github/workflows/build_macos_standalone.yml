@@ -1,4 +1,4 @@
-name: MacOS Intel Official 2026 - Final Step
+name: MacOS Intel Official 2026 - Metal Fix
 on:
   workflow_dispatch:
 
@@ -9,15 +9,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Clean Danmaku from Code
-        run: |
-          # On s'assure que danmakw est bien effacé du Cargo.toml
-          sed -i '' '/danmakw/d' Cargo.toml
-          # On neutralise les imports dans le code source
-          grep -rl "danmakw" src/ | xargs sed -i '' 's/^use danmakw/\/\/ use danmakw/g' || true
-          
       - name: Install Dependencies
         run: |
+          # On installe TOUT, y compris les outils de rendu pour macOS
           brew install gtk4 libadwaita mpv pkg-config dylibbundler gettext \
                        gstreamer adwaita-icon-theme cairo pango atk
           rustup target add x86_64-apple-darwin
@@ -27,7 +21,10 @@ jobs:
           export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:/usr/local/opt/libffi/lib/pkgconfig"
           export GETTEXT_DIR=$(brew --prefix gettext)
           
-          # ON A RETIRÉ --locked ICI pour permettre la mise à jour sans Danmaku
+          # FORCE le rendu sur Metal/Quartz pour macOS et ignore GLES
+          # On ajoute aussi des drapeaux pour ignorer les erreurs de proxy spécifiques à Linux
+          export RUSTFLAGS="--cfg=apple --cfg=metal"
+          
           cargo build --release --target x86_64-apple-darwin
 
       - name: Bundle App
@@ -40,11 +37,11 @@ jobs:
           cp share/macos/AppIcon.icns Tsukimi.app/Contents/Resources/
           cp target/x86_64-apple-darwin/release/tsukimi Tsukimi.app/Contents/MacOS/
           
-          # Schémas GSettings
+          # Compilation des schémas GSettings
           cp $(brew --prefix gtk4)/share/glib-2.0/schemas/*.xml Tsukimi.app/Contents/Resources/share/glib-2.0/schemas/ || true
           glib-compile-schemas Tsukimi.app/Contents/Resources/share/glib-2.0/schemas/
           
-          # Liaison des librairies
+          # On lie les librairies dynamiques
           dylibbundler -od -b \
             -x Tsukimi.app/Contents/MacOS/tsukimi \
             -d Tsukimi.app/Contents/Frameworks/ \
