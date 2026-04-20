@@ -1,0 +1,51 @@
+name: MacOS CI Standalone
+on:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+
+jobs:
+  build-release:
+    runs-on: macos-13
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          brew install gtk4 libadwaita mpv pkg-config dylibbundler gettext
+          rustup target add x86_64-apple-darwin
+
+      - name: Build
+        run: |
+          # On compile spécifiquement pour Intel
+          cargo build --release --locked --target x86_64-apple-darwin
+
+      - name: Make MacOS package & Bundle Libs
+        run: |
+          # 1. On crée la structure conforme à macOS
+          mkdir -p Tsukimi.app/Contents/MacOS
+          mkdir -p Tsukimi.app/Contents/Resources
+          mkdir -p Tsukimi.app/Contents/Frameworks
+          
+          # 2. On utilise les fichiers du projet Tsukimi
+          cp share/macos/Info.plist Tsukimi.app/Contents/
+          cp share/macos/AppIcon.icns Tsukimi.app/Contents/Resources/
+          cp target/x86_64-apple-darwin/release/tsukimi Tsukimi.app/Contents/MacOS/
+          
+          # 3. On embarque les librairies (GTK, etc.)
+          dylibbundler -od -b \
+            -x Tsukimi.app/Contents/MacOS/tsukimi \
+            -d Tsukimi.app/Contents/Frameworks/ \
+            -p @executable_path/../Frameworks/
+          
+          # 4. On compresse en ZIP (plus simple que tar.gz sur Mac)
+          zip -r Tsukimi_Intel_Standalone.zip Tsukimi.app
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tsukimi-Intel-Mac
+          path: Tsukimi_Intel_Standalone.zip
