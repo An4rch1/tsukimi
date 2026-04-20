@@ -1,57 +1,55 @@
-name: MacOS CI Standalone (Cross-Compile Intel)
+name: MacOS Intel Standalone 2026
 on:
   workflow_dispatch:
 
-env:
-  CARGO_TERM_COLOR: always
-  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
-
 jobs:
-  build-release:
-    # On utilise le runner le plus récent (M1/M2)
-    runs-on: macos-latest 
+  build-intel:
+    runs-on: macos-latest # Serveur Apple Silicon (M1/M2)
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Dependencies
+      - name: Install Intel Dependencies (via Rosetta)
         run: |
-          # On installe les librairies. Brew installera les versions ARM par défaut,
-          # mais dylibbundler et le compilateur Rust s'occuperont du reste.
-          brew install gtk4 libadwaita mpv pkg-config dylibbundler gettext
+          # 1. On installe manuellement une version Intel de Homebrew
+          arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
           
-          # On ajoute explicitement la cible Intel pour Rust
+          # 2. On utilise cette version spécifique pour installer les libs Intel
+          # Le chemin par défaut pour Homebrew Intel est /usr/local/bin/brew
+          arch -x86_64 /usr/local/bin/brew install gtk4 libadwaita mpv pkg-config dylibbundler gettext
+          
+          # 3. On ajoute la cible Rust
           rustup target add x86_64-apple-darwin
 
       - name: Build for Intel
         run: |
-          # On force la compilation vers l'architecture Intel (x86_64)
+          # On pointe vers le pkg-config de la version Intel de Homebrew
+          export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:/usr/local/opt/libffi/lib/pkgconfig"
+          export PATH="/usr/local/bin:$PATH"
+          
           cargo build --release --locked --target x86_64-apple-darwin
 
-      - name: Make MacOS package & Bundle Libs
+      - name: Bundle App & Libraries
         run: |
+          # Création de la structure .app
           mkdir -p Tsukimi.app/Contents/MacOS
           mkdir -p Tsukimi.app/Contents/Resources
           mkdir -p Tsukimi.app/Contents/Frameworks
           
           cp share/macos/Info.plist Tsukimi.app/Contents/
           cp share/macos/AppIcon.icns Tsukimi.app/Contents/Resources/
-          
-          # On récupère le binaire qui a été généré dans le dossier x86_64
           cp target/x86_64-apple-darwin/release/tsukimi Tsukimi.app/Contents/MacOS/
           
-          # dylibbundler va chercher les librairies Intel nécessaires.
-          # Note : Si dylibbundler galère car brew est en ARM, il faudra peut-être
-          # forcer brew à installer en x86_64, mais testons d'abord ainsi.
-          dylibbundler -od -b \
+          # On utilise dylibbundler (version Intel) pour lier les libs Intel
+          /usr/local/bin/dylibbundler -od -b \
             -x Tsukimi.app/Contents/MacOS/tsukimi \
             -d Tsukimi.app/Contents/Frameworks/ \
             -p @executable_path/../Frameworks/
           
-          zip -r Tsukimi_Intel_Standalone.zip Tsukimi.app
+          zip -r Tsukimi_Intel_Mac_2026.zip Tsukimi.app
 
-      - name: Upload artifact
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: Tsukimi-Intel-Mac
-          path: Tsukimi_Intel_Standalone.zip
+          name: Tsukimi-Final-Intel
+          path: Tsukimi_Intel_Mac_2026.zip
