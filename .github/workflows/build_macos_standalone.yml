@@ -1,15 +1,23 @@
-name: MacOS Intel Official 2026 - Final Fix
+name: MacOS Intel Official 2026 - No Danmaku
 on:
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: macos-15-intel 
-    
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Remove Danmaku from Code
+        run: |
+          # 1. On retire la dépendance du Cargo.toml au cas où l'étape 1 a été oubliée
+          sed -i '' '/danmakw/d' Cargo.toml
+          
+          # 2. On commente les appels dans le code source pour éviter les erreurs
+          # On cherche les fichiers qui utilisent danmakw et on neutralise les lignes
+          grep -rl "danmakw" src/ | xargs sed -i '' 's/^use danmakw/\/\/ use danmakw/g'
+          
       - name: Install Dependencies
         run: |
           brew install gtk4 libadwaita mpv pkg-config dylibbundler gettext \
@@ -17,13 +25,11 @@ jobs:
                        adwaita-icon-theme cairo pango atk
           rustup target add x86_64-apple-darwin
 
-      - name: Build Tsukimi (No Danmaku)
+      - name: Build Tsukimi
         run: |
           export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:/usr/local/opt/libffi/lib/pkgconfig"
           export GETTEXT_DIR=$(brew --prefix gettext)
-          
-          # On utilise --no-default-features ou on exclut spécifiquement le module si possible.
-          # Pour Tsukimi, on va tenter de compiler le binaire principal directement.
+          # On compile sans danmakw
           cargo build --release --locked --target x86_64-apple-darwin
 
       - name: Bundle App
@@ -34,11 +40,9 @@ jobs:
           
           cp share/macos/Info.plist Tsukimi.app/Contents/
           cp share/macos/AppIcon.icns Tsukimi.app/Contents/Resources/
-          
-          # Vérification du nom du binaire produit
           cp target/x86_64-apple-darwin/release/tsukimi Tsukimi.app/Contents/MacOS/
           
-          # Compilation des schémas GSettings
+          # Schémas GSettings
           cp $(brew --prefix gtk4)/share/glib-2.0/schemas/*.xml Tsukimi.app/Contents/Resources/share/glib-2.0/schemas/ || true
           glib-compile-schemas Tsukimi.app/Contents/Resources/share/glib-2.0/schemas/
           
@@ -53,5 +57,5 @@ jobs:
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: Tsukimi-Intel-Final
+          name: Tsukimi-Intel-No-Danmaku
           path: Tsukimi_Intel_Mac.zip
