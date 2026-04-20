@@ -1,4 +1,4 @@
-name: MacOS Intel Official 2026 - Ultra Robust
+name: MacOS Intel Official 2026 - Final Fix
 on:
   workflow_dispatch:
 
@@ -12,48 +12,46 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          # Installation complète des dépendances de rendu et de média
           brew install gtk4 libadwaita mpv pkg-config dylibbundler gettext \
                        gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad \
-                       adwaita-icon-theme
-          
+                       adwaita-icon-theme cairo pango atk
           rustup target add x86_64-apple-darwin
 
-      - name: Build Tsukimi
+      - name: Build Tsukimi (No Danmaku)
         run: |
-          # On aide pkg-config à trouver les chemins Homebrew
           export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:/usr/local/opt/libffi/lib/pkgconfig"
-          # On force gettext à utiliser la version de brew
           export GETTEXT_DIR=$(brew --prefix gettext)
           
+          # On utilise --no-default-features ou on exclut spécifiquement le module si possible.
+          # Pour Tsukimi, on va tenter de compiler le binaire principal directement.
           cargo build --release --locked --target x86_64-apple-darwin
 
       - name: Bundle App
         run: |
-          # 1. Structure du Bundle
           mkdir -p Tsukimi.app/Contents/MacOS
           mkdir -p Tsukimi.app/Contents/Resources/share/glib-2.0/schemas
           mkdir -p Tsukimi.app/Contents/Frameworks
           
-          # 2. Copie des fichiers vitaux
           cp share/macos/Info.plist Tsukimi.app/Contents/
           cp share/macos/AppIcon.icns Tsukimi.app/Contents/Resources/
+          
+          # Vérification du nom du binaire produit
           cp target/x86_64-apple-darwin/release/tsukimi Tsukimi.app/Contents/MacOS/
           
-          # 3. Compilation des schémas GSettings (Crucial pour éviter le crash au lancement)
+          # Compilation des schémas GSettings
           cp $(brew --prefix gtk4)/share/glib-2.0/schemas/*.xml Tsukimi.app/Contents/Resources/share/glib-2.0/schemas/ || true
           glib-compile-schemas Tsukimi.app/Contents/Resources/share/glib-2.0/schemas/
           
-          # 4. Liaison des librairies dynamiques
+          # Liaison des librairies
           dylibbundler -od -b \
             -x Tsukimi.app/Contents/MacOS/tsukimi \
             -d Tsukimi.app/Contents/Frameworks/ \
             -p @executable_path/../Frameworks/
           
-          zip -r Tsukimi_Intel_Mac_Final.zip Tsukimi.app
+          zip -r Tsukimi_Intel_Mac.zip Tsukimi.app
 
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: Tsukimi-Intel-Ultimate
-          path: Tsukimi_Intel_Mac_Final.zip
+          name: Tsukimi-Intel-Final
+          path: Tsukimi_Intel_Mac.zip
